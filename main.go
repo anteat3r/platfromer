@@ -134,7 +134,7 @@ func main() {
       }
       screen += row + "\n"
     }
-    cmd := exec.Command("cls")
+    cmd := exec.Command("clear")
     cmd.Stdout = os.Stdout
     cmd.Run()
     fmt.Printf("score: %v\n", s.score)
