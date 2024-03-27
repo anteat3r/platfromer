@@ -1,13 +1,13 @@
 package main
 
 import (
-	// "bufio"
-  "fmt"
-  "math/rand"
-  "os"
-  "os/exec"
-  "strconv"
-  "time"
+	"encoding/json"
+	"fmt"
+	"math/rand"
+	"os"
+	"os/exec"
+	"strconv"
+	"time"
 
 	"github.com/eiannone/keyboard"
 	"github.com/fatih/color"
@@ -19,6 +19,11 @@ type Pos struct {
 
 type FloatPos struct {
   X, Y float64
+}
+
+type WorldSave struct {
+  Pos FloatPos `json:"pos"`
+  Score int `json:"score"`
 }
 
 func (p FloatPos) pos() Pos {
@@ -39,6 +44,7 @@ type State struct {
   world map[Pos]Block
   border int
   score int
+  paused bool
 }
 
 func main() {
@@ -58,9 +64,21 @@ func main() {
 
   rng := rand.New(rand.NewSource(seed))
 
+  scores := make(map[int64]WorldSave)
+
+  data, err := os.ReadFile("scores.json")
+  if err == nil {
+    err := json.Unmarshal(data, &scores)
+    if err == nil {
+      s.pos = scores[seed].Pos
+      s.score = scores[seed].Score
+    }
+  }
+
   main: for {
+    time.Sleep(time.Millisecond * 30)
+
     s.cam.X += (s.pos.X - s.cam.X)*.2
-    // s.cam.Y += (s.pos.Y - s.cam.Y)*.2
 
     curblock := s.world[s.pos.pos()]
 
@@ -102,17 +120,34 @@ func main() {
 
     select {
     case key := <-keys:
-      if key.Key == keyboard.KeyEsc { break main }
-      if key.Rune == 't' { s.pos.X += 100 }
-      if key.Rune == 'd' && !r { s.pos.X += 1 }
-      if key.Rune == 'a' && !l { s.pos.X -= 1 }
-      if key.Rune == 'w' && (s.pos.Y == 0 || d) && !u {
+      if key.Rune == 'p' {
+        s.paused = !s.paused
+        if s.paused {
+          fmt.Println("PAUSED")
+        }
+      }
+      if key.Key == keyboard.KeyEsc {
+        scores[seed] = WorldSave{
+          Pos: s.pos,
+          Score: s.score,
+        }
+        data2, err := json.Marshal(scores)
+        if err == nil {
+          os.WriteFile("scores.json", data2, 0644)
+        }
+        break main
+      }
+      if key.Rune == 'l' && !r { s.pos.X += 1 }
+      if key.Rune == 'j' && !l { s.pos.X -= 1 }
+      if key.Key == keyboard.KeySpace && (s.pos.Y == 0 || d) && !u {
         s.pos.Y -= 1
         s.vel.Y = -.8
         d = false
       }
     default:
     }
+
+    if s.paused { continue }
 
     s.vel.Y += .1
     if s.pos.Y >= 0 || d {
@@ -149,9 +184,7 @@ func main() {
     cmd := exec.Command("clear")
     cmd.Stdout = os.Stdout
     cmd.Run()
-    fmt.Printf("%v  score: %v  max: %v\n", seed, s.score, int(s.pos.X))
+    fmt.Printf("%v  max: %v  score: %v\n", seed, s.score, int(s.pos.X))
     fmt.Print(screen)
-
-    time.Sleep(time.Millisecond * 30)
   }
 }
