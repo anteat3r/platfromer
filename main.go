@@ -2,14 +2,15 @@ package main
 
 import (
 	// "bufio"
-	"fmt"
-	"math/rand"
-	"os"
-	"os/exec"
-	"time"
+  "fmt"
+  "math/rand"
+  "os"
+  "os/exec"
+  "strconv"
+  "time"
 
 	"github.com/eiannone/keyboard"
-  "github.com/fatih/color"
+	"github.com/fatih/color"
 )
 
 type Pos struct {
@@ -48,14 +49,23 @@ func main() {
     world: make(map[Pos]Block),
   }
 
+  seed := rand.Int63()
+
+  if len(os.Args) > 1 {
+    seedraw, _ := strconv.Atoi(os.Args[1])
+    seed = int64(seedraw)
+  }
+
+  rng := rand.New(rand.NewSource(seed))
+
   main: for {
     s.cam.X += (s.pos.X - s.cam.X)*.2
-    s.cam.Y += (s.pos.Y - s.cam.Y)*.2
+    // s.cam.Y += (s.pos.Y - s.cam.Y)*.2
 
     curblock := s.world[s.pos.pos()]
 
     if curblock == Spikes {
-      s.pos = FloatPos{}
+      s.pos = FloatPos{X: 0}
       continue main
     }
 
@@ -65,10 +75,11 @@ func main() {
 
     if s.pos.X > float64(s.border) {
       for range 20 {
-        X := rand.Intn(90)+10+s.border
-        Y := 1-rand.Intn(3)
+        X := rng.Intn(90)+10+s.border
+        Y := 1-rng.Intn(3)
         for x := -1; x < 2; x++ {
           for y := -1; y < 2; y++ {
+            if Y+y > 0 { continue }
             s.world[Pos{
              X+x, Y+y,
             }] = Ground
@@ -77,8 +88,8 @@ func main() {
       }
       for range 30 {
         s.world[Pos{
-          rand.Intn(90)+10+s.border,
-          0-rand.Intn(3),
+          rng.Intn(90)+10+s.border,
+          0-rng.Intn(3),
         }] = Spikes
       }
       s.border += 100
@@ -92,6 +103,7 @@ func main() {
     select {
     case key := <-keys:
       if key.Key == keyboard.KeyEsc { break main }
+      if key.Rune == 't' { s.pos.X += 100 }
       if key.Rune == 'd' && !r { s.pos.X += 1 }
       if key.Rune == 'a' && !l { s.pos.X -= 1 }
       if key.Rune == 'w' && (s.pos.Y == 0 || d) && !u {
@@ -125,7 +137,7 @@ func main() {
         } else if s.world[cur] == Spikes {
           row += color.RedString("A")
         } else if s.world[cur] == Ground || y == 1 {
-          if x == 0 {
+          if x == s.border-100 {
             row += color.YellowString("M")
           } else {
             row += "X"
@@ -137,7 +149,7 @@ func main() {
     cmd := exec.Command("clear")
     cmd.Stdout = os.Stdout
     cmd.Run()
-    fmt.Printf("score: %v\n", s.score)
+    fmt.Printf("%v  score: %v  max: %v\n", seed, s.score, int(s.pos.X))
     fmt.Print(screen)
 
     time.Sleep(time.Millisecond * 30)
