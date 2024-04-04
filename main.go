@@ -38,6 +38,13 @@ const (
   Spikes
 )
 
+type GameMode int
+
+const (
+  Survival GameMode = iota
+  Creative
+)
+
 type State struct {
   pos, vel FloatPos
   cam FloatPos
@@ -45,6 +52,7 @@ type State struct {
   border int
   score int
   paused bool
+  gamemode GameMode
 }
 
 func main() {
@@ -82,33 +90,35 @@ func main() {
 
     curblock := s.world[s.pos.pos()]
 
-    if curblock == Spikes {
-      s.pos = FloatPos{X: 0}
+    if curblock == Spikes && s.gamemode == Survival  {
+      s.pos = FloatPos{X: float64(s.border)-100}
       continue main
     }
 
-    if curblock == Ground {
+    if curblock == Ground && s.gamemode == Survival { 
       s.pos.Y -= 1
     }
 
     if s.pos.X > float64(s.border) {
-      for range 20 {
-        X := rng.Intn(90)+10+s.border
-        Y := 1-rng.Intn(3)
-        for x := -1; x < 2; x++ {
-          for y := -1; y < 2; y++ {
-            if Y+y > 0 { continue }
-            s.world[Pos{
-             X+x, Y+y,
-            }] = Ground
+      if s.gamemode == Survival {
+        for range 20 {
+          X := rng.Intn(90)+10+s.border
+          Y := 1-rng.Intn(3)
+          for x := -1; x < 2; x++ {
+            for y := -1; y < 2; y++ {
+              if Y+y > 0 { continue }
+              s.world[Pos{
+               X+x, Y+y,
+              }] = Ground
+            }
           }
         }
-      }
-      for range 30 {
-        s.world[Pos{
-          rng.Intn(90)+10+s.border,
-          0-rng.Intn(3),
-        }] = Spikes
+        for range 30 {
+          s.world[Pos{
+            rng.Intn(90)+10+s.border,
+            0-rng.Intn(3),
+          }] = Spikes
+        }
       }
       s.border += 100
     }
@@ -126,6 +136,9 @@ func main() {
           fmt.Println("PAUSED")
         }
       }
+      if key.Rune == 'm' {
+        s.gamemode = ^s.gamemode
+      }
       if key.Key == keyboard.KeyEsc {
         scores[seed] = WorldSave{
           Pos: s.pos,
@@ -137,29 +150,50 @@ func main() {
         }
         break main
       }
-      if key.Rune == 'l' && !r { s.pos.X += 1 }
-      if key.Rune == 'j' && !l { s.pos.X -= 1 }
-      if key.Key == keyboard.KeySpace && (s.pos.Y == 0 || d) && !u {
-        s.pos.Y -= 1
-        s.vel.Y = -.8
-        d = false
+      if s.gamemode == Survival {
+        if ( key.Rune == 'h' ||
+           key.Rune == 'j' ||
+           key.Rune == 'k' ||
+           key.Rune == 'l' ) &&
+           !r { s.pos.X += 1 }
+        if ( key.Rune == 'a' ||
+           key.Rune == 's' ||
+           key.Rune == 'd' ||
+           key.Rune == 'f' ||
+           key.Rune == 'g' ) &&
+           !l { s.pos.X -= 1 }
+        if key.Key == keyboard.KeySpace && (s.pos.Y == 0 || d) && !u {
+          s.pos.Y -= 1
+          s.vel.Y = -.8
+          d = false
+        }
+      } else {
+        if key.Rune == 'w' { s.pos.Y -= 1 }
+        if key.Rune == 'a' { s.pos.X -= 1 }
+        if key.Rune == 's' { s.pos.Y += 1 }
+        if key.Rune == 'd' { s.pos.X += 1 }
+        if key.Rune == 'e' { s.world[s.pos.pos()] = Air }
+        if key.Rune == 'g' { s.world[s.pos.pos()] = Ground }
+        if key.Rune == 'r' { s.world[s.pos.pos()] = Spikes }
       }
     default:
     }
 
     if s.paused { continue }
 
-    s.vel.Y += .1
-    if s.pos.Y >= 0 || d {
-      if s.pos.Y >= 0 {
-        s.pos.Y = 0
+    if s.gamemode == Survival {
+      s.vel.Y += .1
+      if s.pos.Y >= 0 || d {
+        if s.pos.Y >= 0 {
+          s.pos.Y = 0
+        }
+        s.vel.Y = 0
       }
-      s.vel.Y = 0
-    }
-    s.pos.Y += s.vel.Y
+      s.pos.Y += s.vel.Y
 
-    if int(s.pos.X) > s.score {
-      s.score = int(s.pos.X)
+      if int(s.pos.X) > s.score {
+        s.score = int(s.pos.X)
+      }
     }
 
     screen := ""
@@ -168,7 +202,17 @@ func main() {
       for x := int(s.cam.X)-40; x < int(s.cam.X)+40; x++ {
         cur := Pos{x, y}
         if s.pos.pos() == cur {
-          row += color.MagentaString("O")
+          if s.world[s.pos.pos()] == Air {
+            if s.gamemode == Survival {
+              row += color.MagentaString("O")
+            } else {
+              row += color.BlueString("O")
+            }
+          } else if s.world[s.pos.pos()] == Ground {
+            row += color.WhiteString("O")
+          } else {
+            row += color.RedString("O")
+          }
         } else if s.world[cur] == Spikes {
           row += color.RedString("A")
         } else if s.world[cur] == Ground || y == 1 {
